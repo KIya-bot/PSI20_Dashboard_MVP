@@ -38,3 +38,4 @@ st.subheader("Análises Automáticas / GPT")
 empresa_selecionada = st.selectbox("Escolhe uma empresa:", df_filtrado["Empresa"].tolist())
 analise_texto = df_filtrado[df_filtrado["Empresa"] == empresa_selecionada]["Análise GPT"].values[0]
 st.write(analise_texto)
+
