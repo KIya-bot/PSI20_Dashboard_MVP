@@ -1,14 +1,17 @@
-# dashboard_mvp.py - PSI20 MVP em tempo real
+# dashboard_mvp.py - PSI20 MVP em tempo real com delay
 import yfinance as yf
 import pandas as pd
 import streamlit as st
+import time
 
+# -----------------------------
+# Configurações da página
+# -----------------------------
 st.set_page_config(page_title="Dashboard PSI-20", layout="wide")
-
 st.title("📊 Dashboard PSI-20 - DCF em Tempo Real")
 
 # -----------------------------
-# 1️⃣ Lista de empresas e tickers
+# Lista de empresas e tickers
 # -----------------------------
 tickers = {
     "EDP": "EDP.LS",
@@ -33,60 +36,54 @@ tickers = {
 }
 
 # -----------------------------
-# 2️⃣ Buscar dados em tempo real
+# Função para puxar dados (com delay)
 # -----------------------------
-data_list = []
-
-for empresa, ticker in tickers.items():
+def pegar_dados(ticker):
     try:
         t = yf.Ticker(ticker)
-        hist = t.history(period="1y")  # Últimos 12 meses
-        preco_atual = hist["Close"].iloc[-1]  # Último preço de fechamento
-
+        hist = t.history(period="1y")
+        preco_atual = hist["Close"].iloc[-1]
         receita = t.info.get("totalRevenue", None)
         lucro = t.info.get("netIncomeToCommon", None)
-
-        # DCF simplificado para MVP (exemplo)
         dcf = lucro * 10 if lucro else None
-        desconto = ((dcf - preco_atual) / preco_atual * 100) if dcf else None
-
-        data_list.append({
-            "Empresa": empresa,
-            "Ticker": ticker,
-            "Preço Atual (€)": preco_atual,
-            "Receita (€)": receita,
-            "Lucro (€)": lucro,
-            "DCF Estimado (€)": dcf,
-            "Desconto (%)": desconto
-        })
-
+        desconto = ((dcf - preco_atual)/preco_atual*100) if dcf else None
+        time.sleep(1.5)  # Delay para evitar rate limit
+        return preco_atual, receita, lucro, dcf, desconto
     except Exception as e:
-        data_list.append({
-            "Empresa": empresa,
-            "Ticker": ticker,
-            "Preço Atual (€)": None,
-            "Receita (€)": None,
-            "Lucro (€)": None,
-            "DCF Estimado (€)": None,
-            "Desconto (%)": None
-        })
-        st.warning(f"Erro ao puxar dados de {empresa}: {e}")
+        st.warning(f"Erro ao puxar dados de {ticker}: {e}")
+        return None, None, None, None, None
 
 # -----------------------------
-# 3️⃣ Criar DataFrame e ranking
+# Puxar dados para todas as empresas
+# -----------------------------
+data_list = []
+for empresa, ticker in tickers.items():
+    preco_atual, receita, lucro, dcf, desconto = pegar_dados(ticker)
+    data_list.append({
+        "Empresa": empresa,
+        "Ticker": ticker,
+        "Preço Atual (€)": preco_atual,
+        "Receita (€)": receita,
+        "Lucro (€)": lucro,
+        "DCF Estimado (€)": dcf,
+        "Desconto (%)": desconto
+    })
+
+# -----------------------------
+# Criar DataFrame e ranking
 # -----------------------------
 df = pd.DataFrame(data_list)
-
-# Ranking por desconto (maior desconto primeiro)
 df_sorted = df.sort_values(by="Desconto (%)", ascending=False)
 
 # -----------------------------
-# 4️⃣ Mostrar tabelas e seleção
+# Mostrar tabela ranking
 # -----------------------------
 st.subheader("Ranking por Desconto (%)")
 st.dataframe(df_sorted.style.format({"Desconto (%)": "{:.2f}"}))
 
-# Seleção de empresa
+# -----------------------------
+# Seleção de empresa para detalhes
+# -----------------------------
 empresa_selecionada = st.selectbox("Escolhe uma empresa:", df["Empresa"].tolist())
 detalhes = df[df["Empresa"] == empresa_selecionada].iloc[0]
 
